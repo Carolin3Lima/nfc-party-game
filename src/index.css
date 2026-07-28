@@ -261,11 +261,34 @@ input {
   letter-spacing: 0.06em;
 }
 
+.room-code-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .room-code {
   font-size: 1.15rem;
   font-weight: 800;
   letter-spacing: 0.15em;
   color: var(--purple-300);
+}
+
+.btn-copy {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  padding: 2px 4px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: color 0.2s, background 0.2s;
+  line-height: 1;
+}
+
+.btn-copy:hover {
+  color: var(--purple-300);
+  background: rgba(129, 140, 248, 0.1);
 }
 
 .round-badge {

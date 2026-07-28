@@ -19,7 +19,16 @@ export default function Room() {
   const [drawError, setDrawError] = useState<string | null>(null)
   const [roundLoading, setRoundLoading] = useState(false)
   const [roundError, setRoundError] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
   const lastDrawRef = useRef<number>(0)
+
+  function handleCopyCode() {
+    if (!room) return
+    navigator.clipboard.writeText(room.code).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
 
   const handleDraw = useCallback(async () => {
     const now = Date.now()
@@ -83,7 +92,17 @@ export default function Room() {
       <header className="room-header">
         <div className="room-meta">
           <span className="room-code-label">Sala</span>
-          <span className="room-code">{room.code}</span>
+          <div className="room-code-row">
+            <span className="room-code">{room.code}</span>
+            <button
+              className="btn-copy"
+              onClick={handleCopyCode}
+              aria-label="Copiar código da sala"
+              title="Copiar código"
+            >
+              {copied ? '✓' : '⎘'}
+            </button>
+          </div>
         </div>
         <span className="round-badge">Rodada {room.current_round}</span>
         <button className="btn-leave" onClick={handleLeave} aria-label="Sair">✕</button>
