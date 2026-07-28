@@ -23,7 +23,11 @@ export async function startNfcScan(onScan: NfcCallback): Promise<void> {
   const NDEFReaderClass = (window as unknown as { NDEFReader: new () => AnyNDEFReader }).NDEFReader
   const reader: AnyNDEFReader = new NDEFReaderClass()
 
+  let lastScan = 0
   reader.addEventListener('reading', () => {
+    const now = Date.now()
+    if (now - lastScan < 1500) return
+    lastScan = now
     onScan()
   })
 

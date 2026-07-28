@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useRoom } from '../hooks/useRoom'
 import { loadSession, clearSession } from '../lib/storage'
-import QuestionCard from '../components/QuestionCard'
+import GameCard from '../components/GameCard'
 import NfcListener from '../components/NfcListener'
 import type { DrawResult } from '../lib/supabase'
 
@@ -20,11 +20,8 @@ export default function Room() {
   const [drawError, setDrawError] = useState<string | null>(null)
   const [roundLoading, setRoundLoading] = useState(false)
   const [roundError, setRoundError] = useState<string | null>(null)
-
-  // Estado local da restrição — fonte única de verdade para o banner
   const [restrictionText, setRestrictionText] = useState<string>('')
 
-  // Carrega a restrição toda vez que o room muda de rodada
   useEffect(() => {
     if (!room?.current_restriction_id) return
     supabase
@@ -44,8 +41,7 @@ export default function Room() {
       const result = await drawQuestion()
       setDraw(result)
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'Erro ao sortear.'
-      setDrawError(msg)
+      setDrawError(e instanceof Error ? e.message : 'Erro ao sortear.')
     } finally {
       setDrawLoading(false)
     }
@@ -58,14 +54,11 @@ export default function Room() {
     setDrawError(null)
     try {
       await startNewRound()
-
-      // Busca o room atualizado e a nova restrição diretamente do banco
       const { data: roomData } = await supabase
         .from('rooms')
         .select('current_restriction_id')
         .eq('id', session!.roomId)
         .single()
-
       if (roomData?.current_restriction_id) {
         const { data: rData } = await supabase
           .from('restrictions')
@@ -89,7 +82,7 @@ export default function Room() {
   if (loading) {
     return (
       <div className="page">
-        <div className="loading-spinner">⏳ Carregando sala...</div>
+        <div className="loading-spinner">Carregando sala...</div>
       </div>
     )
   }
@@ -99,7 +92,7 @@ export default function Room() {
       <div className="page">
         <div className="card">
           <div className="error-msg">{error ?? 'Sala não encontrada.'}</div>
-          <button className="btn btn-secondary" onClick={handleLeave}>← Voltar ao início</button>
+          <button className="btn btn-secondary" onClick={handleLeave}>← Voltar</button>
         </div>
       </div>
     )
@@ -107,71 +100,54 @@ export default function Room() {
 
   return (
     <div className="room-page">
-      {/* Header */}
-      <div className="room-header">
+      <NfcListener onScan={handleDraw} active={!drawLoading} />
+
+      <header className="room-header">
         <div className="room-meta">
           <span className="room-code-label">Sala</span>
           <span className="room-code">{room.code}</span>
         </div>
-        <div className="round-badge">Rodada {room.current_round}</div>
-        <button className="btn-leave" onClick={handleLeave} title="Sair da sala">✕</button>
-      </div>
+        <span className="round-badge">Rodada {room.current_round}</span>
+        <button className="btn-leave" onClick={handleLeave} aria-label="Sair">✕</button>
+      </header>
 
-      <div className="room-content">
-        {/* Restriction banner */}
-        <div className="restriction-banner">
-          <span className="restriction-banner-label">Restrição desta rodada</span>
-          <p className="restriction-banner-text">{restrictionText || '—'}</p>
+      <main className="room-main">
+        {drawError && <div className="error-msg room-error">{drawError}</div>}
+        <GameCard
+          restriction={restrictionText}
+          draw={draw}
+          loading={drawLoading}
+          onClick={handleDraw}
+        />
+      </main>
+
+      <footer className="room-footer">
+        <div className="players-row">
+          {players.map((p) => (
+            <div
+              key={p.id}
+              className={`player-chip ${p.id === session?.playerId ? 'player-chip-me' : ''}`}
+            >
+              {p.is_creator && <span className="crown">👑</span>}
+              {p.name}
+              {p.id === session?.playerId && <span className="you-tag">você</span>}
+            </div>
+          ))}
         </div>
 
-        {/* Players list */}
-        <div className="players-section">
-          <span className="section-label">Jogadores ({players.length})</span>
-          <div className="players-list">
-            {players.map((p) => (
-              <div key={p.id} className={`player-chip ${p.id === session?.playerId ? 'player-chip-me' : ''}`}>
-                {p.is_creator && <span className="crown">👑</span>}
-                {p.name}
-                {p.id === session?.playerId && <span className="you-tag">você</span>}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Draw area */}
-        <div className="draw-section">
-          <NfcListener onScan={handleDraw} active={!drawLoading} />
-
-          {drawError && <div className="error-msg">{drawError}</div>}
-
-          <button
-            className="btn btn-primary btn-lg"
-            onClick={handleDraw}
-            disabled={drawLoading}
-          >
-            {drawLoading ? '⏳ Sorteando...' : '🎲 Sortear pergunta'}
-          </button>
-        </div>
-
-        {/* Question card */}
-        {draw && (
-          <QuestionCard draw={draw} onNext={handleDraw} loading={drawLoading} />
-        )}
-
-        {/* New round (creator only) */}
         {currentPlayer?.is_creator && (
-          <div className="new-round-section">
-            {roundError && <div className="error-msg">{roundError}</div>}
+          <div className="footer-actions">
+            {roundError && <span className="footer-error">{roundError}</span>}
             <button
-              className="btn btn-danger"
+              className="new-round-btn"
               onClick={handleNewRound}
               disabled={roundLoading}
             >
-              {roundLoading ? 'Iniciando...' : '⏭ Nova rodada'}
+              {roundLoading ? 'Aguarde...' : 'Nova rodada ⏭'}
             </button>
           </div>
         )}
-      </div>
+      </footer>
     </div>
   )
 }
