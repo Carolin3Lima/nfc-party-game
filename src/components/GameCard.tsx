@@ -27,9 +27,7 @@ export default function GameCard({ restriction, draw, loading, onClick }: Props)
       <div className="gc-body">
         {loading ? (
           <div className="gc-loading">
-            <div className="gc-loading-dots">
-              <span /><span /><span />
-            </div>
+            <div className="gc-dice-roll">🎲</div>
           </div>
         ) : draw ? (
           <>
