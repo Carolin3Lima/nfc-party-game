@@ -1,5 +1,6 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { supabase } from '../lib/supabase'
 import { useRoom } from '../hooks/useRoom'
 import { loadSession, clearSession } from '../lib/storage'
 import QuestionCard from '../components/QuestionCard'
@@ -19,6 +20,22 @@ export default function Room() {
   const [drawError, setDrawError] = useState<string | null>(null)
   const [roundLoading, setRoundLoading] = useState(false)
   const [roundError, setRoundError] = useState<string | null>(null)
+
+  // Estado local da restrição — fonte única de verdade para o banner
+  const [restrictionText, setRestrictionText] = useState<string>('')
+
+  // Carrega a restrição toda vez que o room muda de rodada
+  useEffect(() => {
+    if (!room?.current_restriction_id) return
+    supabase
+      .from('restrictions')
+      .select('text')
+      .eq('id', room.current_restriction_id)
+      .single()
+      .then(({ data }) => {
+        if (data?.text) setRestrictionText(data.text)
+      })
+  }, [room?.current_restriction_id])
 
   const handleDraw = useCallback(async () => {
     setDrawLoading(true)
@@ -41,6 +58,22 @@ export default function Room() {
     setDrawError(null)
     try {
       await startNewRound()
+
+      // Busca o room atualizado e a nova restrição diretamente do banco
+      const { data: roomData } = await supabase
+        .from('rooms')
+        .select('current_restriction_id')
+        .eq('id', session!.roomId)
+        .single()
+
+      if (roomData?.current_restriction_id) {
+        const { data: rData } = await supabase
+          .from('restrictions')
+          .select('text')
+          .eq('id', roomData.current_restriction_id)
+          .single()
+        if (rData?.text) setRestrictionText(rData.text)
+      }
     } catch (e: unknown) {
       setRoundError(e instanceof Error ? e.message : 'Erro ao iniciar nova rodada.')
     } finally {
@@ -72,8 +105,6 @@ export default function Room() {
     )
   }
 
-  const restriction = (room.restrictions as unknown as { text: string } | null)?.text ?? '—'
-
   return (
     <div className="room-page">
       {/* Header */}
@@ -90,7 +121,7 @@ export default function Room() {
         {/* Restriction banner */}
         <div className="restriction-banner">
           <span className="restriction-banner-label">Restrição desta rodada</span>
-          <p className="restriction-banner-text">{restriction}</p>
+          <p className="restriction-banner-text">{restrictionText || '—'}</p>
         </div>
 
         {/* Players list */}

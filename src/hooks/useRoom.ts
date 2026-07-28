@@ -1,8 +1,19 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { supabase, type Room, type Player, type DrawResult } from '../lib/supabase'
 
+async function fetchRestrictionText(restrictionId: string | null): Promise<string> {
+  if (!restrictionId) return ''
+  const { data } = await supabase
+    .from('restrictions')
+    .select('text')
+    .eq('id', restrictionId)
+    .single()
+  return data?.text ?? ''
+}
+
 export function useRoom(roomId: string | null, playerId: string | null) {
   const [room, setRoom] = useState<Room | null>(null)
+  const [restrictionText, setRestrictionText] = useState<string>('')
   const [players, setPlayers] = useState<Player[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -10,16 +21,22 @@ export function useRoom(roomId: string | null, playerId: string | null) {
 
   const fetchRoom = useCallback(async () => {
     if (!roomId) return
-    const { data, error } = await supabase
+
+    const { data: roomData, error: roomErr } = await supabase
       .from('rooms')
-      .select('*, restrictions(text)')
+      .select('*')
       .eq('id', roomId)
       .single()
-    if (error) {
-      setError(error.message)
-    } else {
-      setRoom(data as Room)
+
+    if (roomErr || !roomData) {
+      setError(roomErr?.message ?? 'Sala não encontrada.')
+      return
     }
+
+    setRoom(roomData as Room)
+
+    const text = await fetchRestrictionText(roomData.current_restriction_id)
+    setRestrictionText(text)
   }, [roomId])
 
   const fetchPlayers = useCallback(async () => {
@@ -40,12 +57,21 @@ export function useRoom(roomId: string | null, playerId: string | null) {
 
     const channel = supabase
       .channel(`room:${roomId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'rooms', filter: `id=eq.${roomId}` }, () => {
-        fetchRoom()
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'players', filter: `room_id=eq.${roomId}` }, () => {
-        fetchPlayers()
-      })
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'rooms', filter: `id=eq.${roomId}` },
+        (payload) => {
+          // Atualiza room e busca restrição imediatamente com os dados do evento
+          const newRoom = payload.new as Room
+          setRoom(newRoom)
+          fetchRestrictionText(newRoom.current_restriction_id ?? null).then(setRestrictionText)
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'players', filter: `room_id=eq.${roomId}` },
+        () => { fetchPlayers() }
+      )
       .subscribe()
 
     channelRef.current = channel
@@ -72,9 +98,11 @@ export function useRoom(roomId: string | null, playerId: string | null) {
       p_player_id: playerId,
     })
     if (error) throw new Error(error.message)
-  }, [roomId, playerId])
+    // Força re-fetch completo após RPC
+    await fetchRoom()
+  }, [roomId, playerId, fetchRoom])
 
   const currentPlayer = players.find((p) => p.id === playerId) ?? null
 
-  return { room, players, currentPlayer, loading, error, drawQuestion, startNewRound }
+  return { room, restrictionText, players, currentPlayer, loading, error, drawQuestion, startNewRound }
 }
