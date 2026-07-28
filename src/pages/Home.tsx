@@ -129,7 +129,7 @@ export default function Home() {
   return (
     <div className="page">
       <div className="card">
-        <div className="logo">🎲</div>
+        <div className="logo"><span className="gc-dice-roll">🎲</span></div>
         <h1 className="title">NFC Party Game</h1>
         <p className="subtitle">Toque na peça NFC e receba sua pergunta</p>
 

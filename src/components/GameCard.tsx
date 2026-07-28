@@ -36,7 +36,7 @@ export default function GameCard({ restriction, draw, loading, onClick }: Props)
           </>
         ) : (
           <>
-            <div className="gc-idle-icon">🎲</div>
+            <div className="gc-dice-roll">🎲</div>
             <p className="gc-idle-text">Toque no NFC ou aqui para sortear</p>
           </>
         )}
