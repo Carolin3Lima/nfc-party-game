@@ -9,7 +9,7 @@ import type { DrawResult } from '../lib/supabase'
 export default function Room() {
   const navigate = useNavigate()
   const session = loadSession()
-  const { room, restrictionText, players, currentPlayer, loading, error, drawQuestion, startNewRound } = useRoom(
+  const { room, restrictionText, players, currentPlayer, loading, error, joinToast, lastDrawnByName, drawQuestion, startNewRound } = useRoom(
     session?.roomId ?? null,
     session?.playerId ?? null
   )
@@ -20,6 +20,7 @@ export default function Room() {
   const [roundLoading, setRoundLoading] = useState(false)
   const [roundError, setRoundError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  const [countdown, setCountdown] = useState<number | null>(null)
   const lastDrawRef = useRef<number>(0)
 
   function handleCopyCode() {
@@ -35,11 +36,18 @@ export default function Room() {
     if (now - lastDrawRef.current < 3000) return
     lastDrawRef.current = now
 
+    for (const n of [3, 2, 1]) {
+      setCountdown(n)
+      await new Promise(r => setTimeout(r, 700))
+    }
+    setCountdown(null)
+
     setDrawLoading(true)
     setDrawError(null)
     try {
       const result = await drawQuestion()
       setDraw(result)
+      navigator.vibrate?.(80)
     } catch (e: unknown) {
       setDrawError(e instanceof Error ? e.message : 'Erro ao sortear.')
     } finally {
@@ -87,7 +95,11 @@ export default function Room() {
 
   return (
     <div className="room-page">
-      <NfcListener onScan={handleDraw} active={!drawLoading} />
+      <NfcListener onScan={handleDraw} active={!drawLoading && countdown === null} />
+
+      {joinToast && (
+        <div className="join-toast">{joinToast} entrou na sala 👋</div>
+      )}
 
       <header className="room-header">
         <div className="room-meta">
@@ -114,6 +126,8 @@ export default function Room() {
           restriction={restrictionText}
           draw={draw}
           loading={drawLoading}
+          countdown={countdown}
+          lastDrawnBy={lastDrawnByName}
           onClick={handleDraw}
         />
       </main>

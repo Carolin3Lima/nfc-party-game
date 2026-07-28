@@ -17,7 +17,10 @@ export function useRoom(roomId: string | null, playerId: string | null) {
   const [players, setPlayers] = useState<Player[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [joinToast, setJoinToast] = useState<string | null>(null)
+  const [lastDrawnByName, setLastDrawnByName] = useState<string | null>(null)
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
+  const joinToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const fetchRoom = useCallback(async () => {
     if (!roomId) return
@@ -61,7 +64,6 @@ export function useRoom(roomId: string | null, playerId: string | null) {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'rooms', filter: `id=eq.${roomId}` },
         (payload) => {
-          // Atualiza room e busca restrição imediatamente com os dados do evento
           const newRoom = payload.new as Room
           setRoom(newRoom)
           fetchRestrictionText(newRoom.current_restriction_id ?? null).then(setRestrictionText)
@@ -69,8 +71,33 @@ export function useRoom(roomId: string | null, playerId: string | null) {
       )
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'players', filter: `room_id=eq.${roomId}` },
+        { event: 'INSERT', schema: 'public', table: 'players', filter: `room_id=eq.${roomId}` },
+        (payload) => {
+          const newPlayer = payload.new as Player
+          if (newPlayer.id !== playerId) {
+            if (joinToastTimerRef.current) clearTimeout(joinToastTimerRef.current)
+            setJoinToast(newPlayer.name)
+            joinToastTimerRef.current = setTimeout(() => setJoinToast(null), 3000)
+          }
+          fetchPlayers()
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'players', filter: `room_id=eq.${roomId}` },
         () => { fetchPlayers() }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'question_draws', filter: `room_id=eq.${roomId}` },
+        (payload) => {
+          const draw = payload.new as { player_id: string }
+          setPlayers(prev => {
+            const p = prev.find(pl => pl.id === draw.player_id)
+            if (p) setLastDrawnByName(p.name)
+            return prev
+          })
+        }
       )
       .subscribe()
 
@@ -104,5 +131,5 @@ export function useRoom(roomId: string | null, playerId: string | null) {
 
   const currentPlayer = players.find((p) => p.id === playerId) ?? null
 
-  return { room, restrictionText, players, currentPlayer, loading, error, drawQuestion, startNewRound }
+  return { room, restrictionText, players, currentPlayer, loading, error, joinToast, lastDrawnByName, drawQuestion, startNewRound }
 }
