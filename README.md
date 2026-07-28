@@ -172,3 +172,4 @@ Em dispositivos sem suporte, o botão **Sortear pergunta** funciona normalmente.
 | `question_draws` | Histórico de sorteios por jogador/rodada (garante sem repetição) |
 
 RPCs atômicas: `draw_question` e `start_new_round`.
+# nfc-party-game
