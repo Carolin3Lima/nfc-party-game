@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { supabase } from '../lib/supabase'
 import { useRoom } from '../hooks/useRoom'
 import { loadSession, clearSession } from '../lib/storage'
 import GameCard from '../components/GameCard'
@@ -10,7 +9,7 @@ import type { DrawResult } from '../lib/supabase'
 export default function Room() {
   const navigate = useNavigate()
   const session = loadSession()
-  const { room, players, currentPlayer, loading, error, drawQuestion, startNewRound } = useRoom(
+  const { room, restrictionText, players, currentPlayer, loading, error, drawQuestion, startNewRound } = useRoom(
     session?.roomId ?? null,
     session?.playerId ?? null
   )
@@ -20,21 +19,13 @@ export default function Room() {
   const [drawError, setDrawError] = useState<string | null>(null)
   const [roundLoading, setRoundLoading] = useState(false)
   const [roundError, setRoundError] = useState<string | null>(null)
-  const [restrictionText, setRestrictionText] = useState<string>('')
-
-  useEffect(() => {
-    if (!room?.current_restriction_id) return
-    supabase
-      .from('restrictions')
-      .select('text')
-      .eq('id', room.current_restriction_id)
-      .single()
-      .then(({ data }) => {
-        if (data?.text) setRestrictionText(data.text)
-      })
-  }, [room?.current_restriction_id])
+  const lastDrawRef = useRef<number>(0)
 
   const handleDraw = useCallback(async () => {
+    const now = Date.now()
+    if (now - lastDrawRef.current < 3000) return
+    lastDrawRef.current = now
+
     setDrawLoading(true)
     setDrawError(null)
     try {
@@ -54,19 +45,6 @@ export default function Room() {
     setDrawError(null)
     try {
       await startNewRound()
-      const { data: roomData } = await supabase
-        .from('rooms')
-        .select('current_restriction_id')
-        .eq('id', session!.roomId)
-        .single()
-      if (roomData?.current_restriction_id) {
-        const { data: rData } = await supabase
-          .from('restrictions')
-          .select('text')
-          .eq('id', roomData.current_restriction_id)
-          .single()
-        if (rData?.text) setRestrictionText(rData.text)
-      }
     } catch (e: unknown) {
       setRoundError(e instanceof Error ? e.message : 'Erro ao iniciar nova rodada.')
     } finally {
